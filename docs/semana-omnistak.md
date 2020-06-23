@@ -194,16 +194,6 @@ app.use(routes);
 app.listen(3333);
 ```
 
-6. Criar um diretório `database/` dentro de `src/` e modificar o arquivo **`knexfile.js`** com esse mapeamento:
-```javascript
-development: {
-    client: 'sqlite3',
-    connection: {
-      filename: './src/database/db.sqlite'
-    }
-  },
-```
-
 ## **Banco de dados**
 
 Há diversos tipos de banco de dados,os principais estão citados abaixo:
@@ -243,6 +233,16 @@ npm install sqlite3
 3. Para iniciar a conexão com banco de dados inicia-se o knex com o comando, que cria o arquivo de configuração do banco de dados **`knexfile.js`**, execute:
 ```
 npx knex init
+```
+
+4. Criar um diretório `database/` dentro de `src/` e modificar o arquivo **`knexfile.js`** com esse mapeamento:
+```javascript
+development: {
+    client: 'sqlite3',
+    connection: {
+      filename: './src/database/db.sqlite'
+    }
+  },
 ```
 
 ### **Criando funcionalidade para criação das tabelas**
@@ -349,6 +349,15 @@ exports.down = function(knex) {
 npx knex migrate:latest
 ```
 > Após executar esse comando o banco de dados `db.sqlite` será criado em `database`.
+
+5. É comum que ao executar o comando o alerta seja exibido:
+```
+sqlite does not support inserting default values. Set the `useNullAsDefault` flag to hide this warning. (see docs http://knexjs.org/#Builder-insert).
+```
+ Para que nas próximas migações o alerta não sejá exibido, o recomendado é colocar uma flag no arquivo **`knexfile.js`**:
+```
+useNullAsDefault: true
+```
 
 ### Criando a tabela de incidents
 
