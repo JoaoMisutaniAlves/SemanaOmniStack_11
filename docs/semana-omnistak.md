@@ -259,7 +259,7 @@ development: {
       filename: './src/database/db.sqlite'
     },
     migrations: {
-      directory: '/src/database/migrations'
+      directory: './src/database/migrations'
     }
   },
 ```
@@ -348,13 +348,13 @@ exports.down = function(knex) {
 ```bash
 npx knex migrate:latest
 ```
-> Após executar esse comando o banco de dados `db.sqlite` será criado em `database`.
+> Após executar esse comando o banco de dados **`db.sqlite`** será criado em `src/database/`.
 
 5. É comum que ao executar o comando o alerta seja exibido:
 ```
 sqlite does not support inserting default values. Set the `useNullAsDefault` flag to hide this warning. (see docs http://knexjs.org/#Builder-insert).
 ```
- Para que nas próximas migações o alerta não sejá exibido, o recomendado é colocar uma flag no arquivo **`knexfile.js`**:
+ Para que nas próximas migrações o alerta não seja exibido, o recomendado é colocar uma flag no arquivo **`knexfile.js`**:
 ```
 useNullAsDefault: true
 ```
@@ -368,7 +368,7 @@ O mesmo será feito para a tabela `incidents` *(`casos` em inglês)*.
 npx knex migrate:make create_incidents
 ```
 
-2. Editar o arquivo criado `create_incidents.js`:
+2. Editar o arquivo criado **`create_incidents.js`**:
 ```javascript
 exports.up = function(knex) {
     return knex.schema.createTable('incidents', function(table) {
@@ -396,7 +396,7 @@ npx knex migrate:latest
 
 ### **Conceitos básicos**
 
-Metodologia **REST** trata-se de uma abstração da arquitetura da **WWW**, mais precisamente, é um estilo arquitetural. Resumidamente, o REST consiste em princípios/regras/constraints que, quando seguidas são denominados Web services RESTful.
+métodologia **REST** trata-se de uma abstração da arquitetura da **WWW**, mais precisamente, é um estilo arquitetural. Resumidamente, o REST consiste em princípios/regras/constraints que, quando seguidas são denominados Web services RESTful.
 
 Em um Web service REST, as solicitações são feitas ao **URI**, que terá uma resposta formatada em HTML, XML, JSON ou algum outro formato, neste projeto será utilizado o formato **JSON**.
 
@@ -416,6 +416,692 @@ Nas chamadas a **API** são utilizados alguns tipos de parâmetros, que podem se
  - **Query Params**: Parâmetros nomeados na rota enviados na rota após o símbolo de "?"(filtros, paginação).
  - **Route Params / Path Params**: Parâmetros utilizados para identificar recursos.
  - **Request Body**: Corpo da requisição, utilizado para criar ou alterar recursos.
+
+### **CRUD ONG's**
+
+Para tornar a aplicação mais escalável é hora de reorganizar a estrutura dos arquivos:
+
+  1. Criar uma pasta `/controllers` dentro de `/src`:
+  >As lógicas das entidades serão colocadas aqui.
+
+  2. Criar um novo arquivo **`ongs_controller.js`** dentro de `/src/controllers` onde ficará as lógicas para as **ONG's**:
+```javascript
+const express = require('express');
+
+module.exports = {};
+```
+
+  3. Será necessário fazer alguns preparativos dentro **`routes.js`** para adicionar as rotas das entidades começando pela **ONG**:
+```javascript
+const express = require('express');
+const ongs_controller = require('./controllers/ongs_controller');
+
+const routes = express.Router();
+
+module.exports = routes;
+```
+
+  4. Criar um novo arquivo **`connection.js`** dentro de `src/database/` para gerenciar as conexões ao banco de dados:
+```javascript
+const knex = require('knex');
+const config = require('../../knexfile');
+
+const connection = knex(config.development);
+
+module.exports = connection;
+```
+Esse arquivo exportará a variável `connection` que contém as configurações necessárias para a conexão com o **DB**. Portanto, sempre que necessário comunicar com o BD, será necessário importar esse arquivo **`connection.js`**.
+
+  - Para adicionar a variável `connection` use:
+```javascript
+const connection = require('./database/connection');
+```
+
+  5. Agora com essa estrutura pronta é hora de construir o **CRUD** da **Entidade ONG**
+___
+  -  **C** *RUD* / **C** *riate* (Criação):
+  > Será a rota responsável pela criação de uma nova **ONG** no **DB**.
+
+  1. Dentro do arquivo **`ongs_controller.js`** será escrito o método de criação:
+```javascript
+async create(request, response) {
+
+    return response.json();
+};
+```
+
+  2. Agora com a estrutura pronta é hora de implementar o método para adicionar uma **ONG**:
+```javascript
+const connection = require('../database/connection');
+const crypto = require('crypto');
+
+  const {name, email, whatsapp, city, uf} = request.body;
+
+  const id = crypto.randomBytes(4).toString('HEX');
+
+  await connection('ongs').insert({
+      id,
+      name,
+      email,
+      whatsapp,
+      city,
+      uf
+  });
+
+  return response.json({id});
+```
+    - As variáveis passadas na requisição serão capturadas uma a uma para serem armazenadas na entidade/tabela `ongs`.
+    - O campo `id` desta tabela não será gerado automaticamente pelo banco de dados, será gerado através da biblioteca `crypto`. Onde uma string aleatória formada por 4 bytes hexadecimais será gerada pelo `crypto`.
+    - Para inserir os dados na tabela será utilizado o `connection.insert` que é um método do `knex` passando como argumento (nesse caso `ongs`) a tabela onde os dados serão armazenados. Os dados devem ser inseridos na ordem em que foram criados.
+    - Com o comando `return response.json({id})` será retornado ao usuário o `id` gerado para a ONG. Esse `id` vai servir de identificação da ONG para o login.
+    - Utilizar `async` ou `await` garante que o `id` só será retornado após a inserção dos dados na tabela `ongs`.
+
+  3. Finalizando então o método de criação temos:
+```javascript
+const connection = require('../database/connection');
+const crypto = require('crypto');
+
+  async create(request, response) {
+
+    const {name, email, whatsapp, city, uf} = request.body;
+
+    const id = crypto.randomBytes(4).toString('HEX');
+
+    await connection('ongs').insert({
+        id,
+        name,
+        email,
+        whatsapp,
+        city,
+        uf
+    });
+
+    return response.json({id});
+  }
+```
+  4. Agora com o método finalizado, basta chama-lo em **`routes.js`**:
+```javascript
+const express = require('express');
+const ongs_controller = require('./controllers/ongs_controller');
+
+const routes = express.Router();
+
+routes.post('/ongs', ongs_controller.create);
+
+module.exports = routes;
+```
+> Seguindo as regras do **REST** todo método de criação deve ser **POST**.
+___
+  -  *C* **R** *UD* / **R** *ead* (Consulta):
+  > Será a rota responsável por consultar e mostar os dados de uma **ONG**.
+
+  1. Dentro do arquivo **`ongs_controller.js`** será escrito o método de consulta:
+```javascript
+async read(request, response) {
+
+  return response.json();
+};
+```
+
+  2. Agora com a estrutura pronta é hora de implementar o método para consultar uma **ONG**:
+```javascript
+  const {id} = request.body;
+
+  const ong = await connection('ongs').where('id',id);
+
+  return response.json(ong);
+```
+    - A variável passada na requisição será capturada para ser consultado tabela `ongs`.
+    - Para consultar os dados será utilizado o `connection.where` que é um método do `knex` passando como argumento (nesse caso `ongs`) a tabela onde os dados serão consultados.
+    - Com o comando `return response.json(ong)` retornará ao usuário uma entidade ONG.
+    - Utilizar `async` ou `await` garante que a ONG só retornará após a consulta dos dados na tabela `ongs`.
+
+  3. Finalizando então o método de consulta temos:
+```javascript
+async read(request, response) {
+
+  const {id} = request.body;
+
+  const ong = await connection('ongs').where('id',id);
+
+  return response.json(ong);
+}
+```
+
+  4. Agora com o método finalizado, basta chama-lo em **`routes.js`**:
+```javascript
+const express = require('express');
+const ongs_controller = require('./controllers/ongs_controller');
+
+const routes = express.Router();
+
+routes.post('/ongs', ongs_controller.create);
+routes.get('/ongs', ongs_controller.read);
+
+module.exports = routes;
+```
+> Seguindo as regras do **REST** todo método de consulta deve ser **GET**.
+___
+  -  *CR* **U** *D* / **U** *pdate* (Atualização):
+  > Será a rota responsável por atualizar dados de uma **ONG**.
+
+  1. Dentro do arquivo **`ongs_controller.js`** será escrito o método de consulta:
+```javascript
+async update(request, response) {
+
+  return response.json();
+};
+```
+
+  2. Agora com a estrutura pronta é hora de implementar o método para atualizar uma **ONG**:
+```javascript
+  const {id, name, email, whatsapp, city, uf} = request.body;
+
+  const ong = await connection('ongs')
+    .where('id',id).update({
+        name: name,
+        email: email,
+        whatsapp: whatsapp,
+        city: city,
+        uf: uf
+    });
+
+  return response.json(ong);
+```
+    - As variáveis passadas na requisição serão capturadas uma a uma e caso estejam presentes serem alteradas na tabela `ongs`.
+    - Para alterar os dados será utilizado o `connection.where.update` que é um método do `knex` passando como argumento (nesse caso `ongs`) a tabela onde os dados serão alterados.
+    - Com o comando `return response.json(ong)` retornará ao usuário uma entidade ONG.
+    - Utilizar `async` ou `await` garante que a ONG só retornará após a atualização dos dados na tabela `ongs`.
+
+  3. Finalizando então o método de atualização temos:
+```javascript
+async update(request, response) {
+
+  const {id, name, email, whatsapp, city, uf} = request.body;
+
+  const ong = await connection('ongs')
+    .where('id',id).update({
+        name: name,
+        email: email,
+        whatsapp: whatsapp,
+        city: city,
+        uf: uf
+    });
+
+  return response.json(ong);
+}
+```
+
+  4. Agora com o método finalizado, basta chama-lo em **`routes.js`**:
+```javascript
+const express = require('express');
+const ongs_controller = require('./controllers/ongs_controller');
+
+const routes = express.Router();
+
+routes.post('/ongs', ongs_controller.create);
+routes.get('/ongs', ongs_controller.read);
+routes.put('/ongs', ongs_controller.update);
+
+module.exports = routes;
+```
+> Seguindo as regras do **REST** todo método de atualização deve ser **PUT**.
+___
+  -  *CRU* **D** / **D** *elete* (Remover):
+  > Será a rota responsável por remover uma **ONG**.
+
+  1. Dentro do arquivo **`ongs_controller.js`** será escrito o método de remoção:
+```javascript
+async delete(request, response) {
+
+  return response.json();
+};
+```
+
+  2. Agora com a estrutura pronta é hora de implementar o método para remover uma **ONG**:
+```javascript
+  const {id} = request.body;
+
+  const ong = await connection('ongs')
+    .where('id',id).del();
+
+  return response.json(ong);
+```
+    - As variáveis passadas na requisição serão capturadas uma a uma e caso estejam presentes serem alteradas na tabela `ongs`.
+    - Para alterar os dados será utilizado o `connection.where.update` que é um método do `knex` passando como argumento (nesse caso `ongs`) a tabela onde os dados serão alterados.
+    - Com o comando `return response.json(ong)` retornará ao usuário uma entidade ONG.
+    - Utilizar `async` ou `await` garante que a ONG só retornará após a remoção dos dados na tabela `ongs`.
+
+  3. Finalizando então o método de remoção temos:
+```javascript
+async delete(request, response) {
+
+  const {id} = request.body;
+
+  const ong = await connection('ongs')
+    .where('id',id).del();
+
+  return response.json(ong);
+}
+```
+
+  4. Agora com o método finalizado, basta chama-lo em **`routes.js`**:
+```javascript
+const express = require('express');
+const ongs_controller = require('./controllers/ongs_controller');
+
+const routes = express.Router();
+
+routes.post('/ongs', ongs_controller.create);
+routes.get('/ongs', ongs_controller.read);
+routes.put('/ongs', ongs_controller.update);
+routes.delete('/ongs', ongs_controller.delete);
+
+module.exports = routes;
+```
+> Seguindo as regras do **REST** todo método de remoção deve ser **DELETE**.
+___
+
+### **CRUD incidentes**
+
+  1. Com a nova estrutura pronta é hora de criar um controller para os **CASOS** (*incidents*) chamado **`incidents_controller.js`** em `/src/controllers`.
+```javascript
+const express = require('express');
+
+module.exports = {};
+```
+
+  2. Será necessário adicionar esta nova controller dentro **`routes.js`**, para adicionar as rotas da entidade **Incident**:
+```javascript
+const express = require('express');
+const ongs_controller = require('./controllers/ongs_controller');
+const incidents_controller = require('./controllers/incidents_controller');
+
+const routes = express.Router();
+
+//Rotas para ONGs
+routes.post('/ongs', ongs_controller.create);
+routes.get('/ongs', ongs_controller.read);
+routes.put('/ongs', ongs_controller.update);
+routes.delete('/ongs', ongs_controller.delete);
+
+module.exports = routes;
+```
+
+  3. Agora é hora de construir o **CRUD** da **Entidade Incident**
+___
+  -  **C** *RUD* / **C** *riate* (Criação):
+  > Será a rota responsável pela criação de um novo **Incident**.
+
+  1. Dentro do arquivo **`incidents_controller.js`** adicionar o método:
+```javascript
+async create(request, response) {
+
+    return response.json();
+};
+```
+
+  2. Agora essa estrutura é hora de implementar a lógica:
+```javascript
+const connection = require('../database/connection');
+
+  const {title, description, value} = request.body;
+
+  const ong_id = request.headers.authorization;
+
+  const [id] = await connection('incidents').insert({
+      title,
+      description,
+      value,
+      ong_id
+  });
+
+  return response.json({id});
+```
+    - A novidade aqui é a utilização de headers (cabeçalho da requisição) para pegar o valor `ong_id` o ID da ONG responsável pelo caso/incident da requisição. É possível simular o header da requisição com o Insomnia.
+    - Como o metodo pode retornar um arry/lista de resposta e o resultado esperado é apenas o id, a variável fica entra cochetes para pegar somente este resultado.
+    - Após da inserção do caso/incident a resposta retorna o `id` recém criado.
+
+  3. Finalizando então:
+```javascript
+const connection = require('../database/connection');
+
+  async create(request, response) {
+
+    const {title, description, value} = request.body;
+
+    const ong_id = request.headers.authorization;
+
+    const id = await connection('incidents').insert({
+        title,
+        description,
+        value,
+        ong_id
+    });
+
+    return response.json({id});
+  }
+```
+
+  4. Com o método finalizado, basta chama-lo em **`routes.js`**:
+```javascript
+const express = require('express');
+const ongs_controller = require('./controllers/ongs_controller');
+const incidents_controller = require('./controllers/incidents_controller');
+
+const routes = express.Router();
+
+//Rotas para ONGs
+routes.post('/ongs', ongs_controller.create);
+routes.get('/ongs', ongs_controller.read);
+routes.put('/ongs', ongs_controller.update);
+routes.delete('/ongs', ongs_controller.delete);
+
+//Rotas para Incidents
+routes.post('/incidents', incidents_controller.create);
+
+module.exports = routes;
+```
+> Seguindo as regras do **REST** todo método de criação deve ser **POST**.
+___
+  -  *C* **R** *UD* / **R** *ead* (Consulta):
+  > Será a rota responsável por consultar e mostar os dados de um **Incident**.
+
+  1. Dentro de **`incidents_controller.js`** criar o método de consulta:
+```javascript
+async read(request, response) {
+
+  return response.json();
+};
+```
+
+  2. Com essa estrutura é hora de implementar o método de consulta:
+```javascript
+  const {id} = request.body;
+
+  const incident = await connection('incidents').where('id',id);
+
+  return response.json(incident);
+```
+
+  3. Finalizando então:
+```javascript
+async read(request, response) {
+
+  const {id} = request.body;
+
+  const incident = await connection('incidents').where('id',id);
+
+  return response.json(incident);
+}
+```
+
+  4. Com o método finalizado, basta chama-lo em **`routes.js`**:
+```javascript
+const express = require('express');
+const ongs_controller = require('./controllers/ongs_controller');
+const incidents_controller = require('./controllers/incidents_controller');
+
+const routes = express.Router();
+
+//Rotas para ONGs
+routes.post('/ongs', ongs_controller.create);
+routes.get('/ongs', ongs_controller.read);
+routes.put('/ongs', ongs_controller.update);
+routes.delete('/ongs', ongs_controller.delete);
+
+//Rotas para Incidents
+routes.post('/incidents', incidents_controller.create);
+routes.get('/incidents', incidents_controller.read);
+
+module.exports = routes;
+```
+> Seguindo as regras do **REST** todo método de consulta deve ser **GET**.
+___
+  -  *CR* **U** *D* / **U** *pdate* (Atualização):
+  > Será a rota responsável por atualizar dados de um **Incidents**.
+
+  1. Dentro de **`incidents_controller.js`** escreva o método de consulta:
+```javascript
+async update(request, response) {
+
+  return response.json();
+};
+```
+
+  2. Com essa estrutura é hora de implementar o método para atualizar:
+```javascript
+  const {title, description, value} = request.body;
+
+  const incident = await connection('incidents')
+    .where('id',id).update({
+        title: title,
+        description: description,
+        value: value
+    });
+
+  return response.json(incident);
+```
+
+  3. Finalizando então o método de atualização temos:
+```javascript
+async update(request, response) {
+
+  const {title, description, value} = request.body;
+
+  const incident = await connection('incidents')
+    .where('id',id).update({
+        title: title,
+        description: description,
+        value: value
+    });
+
+  return response.json(incident);
+}
+```
+
+  4. Agora com o método finalizado, basta chama-lo em **`routes.js`**:
+```javascript
+const express = require('express');
+const ongs_controller = require('./controllers/ongs_controller');
+
+const routes = express.Router();
+
+//Rotas para ONGs
+routes.post('/ongs', ongs_controller.create);
+routes.get('/ongs', ongs_controller.read);
+routes.put('/ongs', ongs_controller.update);
+routes.delete('/ongs', ongs_controller.delete);
+
+//Rotas para Incidents
+routes.post('/incidents', incidents_controller.create);
+routes.get('/incidents', incidents_controller.read);
+routes.put('/incidents', incidents_controller.update);
+
+module.exports = routes;
+```
+> Seguindo as regras do **REST** todo método de atualização deve ser **PUT**.
+___
+  -  *CRU* **D** / **D** *elete* (Remover):
+  > Será a rota responsável por remover um **Incidents**.
+
+  1. Dentro do arquivo **`incidents_controller.js`** escreva o método de remoção:
+```javascript
+async delete(request, response) {
+
+  return response.json();
+};
+```
+
+  2. Com essa estrutura é hora de implementar o método para remover:
+```javascript
+  const {id} = request.body;
+
+  const incident = await connection('incidents')
+    .where('id',id).del();
+
+  return response.json(incident);
+```
+
+  3. Finalizando então o método de remoção:
+```javascript
+async delete(request, response) {
+
+  const {id} = request.body;
+
+  const incident = await connection('incidents')
+    .where('id',id).del();
+
+  return response.json(incident);
+}
+```
+
+  4. Agora com o método finalizado, basta chama-lo em **`routes.js`**:
+```javascript
+const express = require('express');
+const ongs_controller = require('./controllers/ongs_controller');
+
+const routes = express.Router();
+
+//Rotas para ONGs
+routes.post('/ongs', ongs_controller.create);
+routes.get('/ongs', ongs_controller.read);
+routes.put('/ongs', ongs_controller.update);
+routes.delete('/ongs', ongs_controller.delete);
+
+//Rotas para Incidents
+routes.post('/incidents', incidents_controller.create);
+routes.get('/incidents', incidents_controller.read);
+routes.put('/incidents', incidents_controller.update);
+routes.delete('/incidents', incidents_controller.delete);
+
+module.exports = routes;
+```
+> Seguindo as regras do **REST** todo método de remoção deve ser **DELETE**.
+___
+
+### Melhorias CRUD.
+
+Pensar em problemas que possam ocorrer durante a aplicação ou até mesmo em melhorias é um processo normal, para evitar que um possivel erro cause alguma falha na aplicação. Então tendo isso em mente é hora de pensar em erros que podem ocorrer com os métodos já criados.
+
+  1. Ao consultar uma entidade tem-se acesso a penas a uma entidade, e uma das funcionalidades presentes no layout é a listagem de *incidents* que cada **ONG** possue:
+
+  - Primeiro ponto é escrever o código dentro de **`incidents_controller.js`**:
+```javascript
+ async index(request, response) {
+        const { page = 1} = request.query;
+
+        const [count] = await connection('incidents').count();
+
+        const incidents = await connection('incidents')
+            .join('ongs', 'ongs.id', '=', 'incidents.ong_id')
+            .limit(5)
+            .offset((page - 1) * 5)
+            .select([
+                'incidents.*',
+                'ongs.name',
+                'ongs.email',
+                'ongs.whatsapp',
+                'ongs.city',
+                'ongs.uf'
+            ]);
+
+        response.header('X-Total-Count', count['count(*)']);
+        return response.json(incidents);
+    },
+```
+    - A variável de paginação ('page') passada como rota de consulta(query path) será capturada para realizar a busca e evitar que o retorno seja muito grande e ocorra problemas com limit de memória ou tempo de resposta;
+    - Para saber o número total de incidents cadastrados o método utilixado é o `.count`, como o metodo pode retornar um arry/lista de resposta e o resultado esperado é apenas o count, a variável fica entra cochetes para pegar somente este resultado;
+    - Como um incidents está diretamente relacionado a uma ong para trazer os dados junto com os dados do incident o método utilizado é o `.join`;
+    - O metodo `.limit` é utilizado para limitar o número de incidents por página;
+    - O metodo `.offset` é utilizado para indicar o primeiro incident no intervalo definido de limite de acordo com a página;
+    - O metodo `.select` como visto anteriormente serve para trazer os resultados do DB, mas como incidents e ond possuem um atributo com o mesmo nome, neste caso 'id', a tratativa adotada será trazer os dados relacionados a ONG um a um já que o incident possuem o id de sua respectiva ONG, então não será necessário trazer este dado;
+    - Para indicar ao front que ainda existem dados depois do intervado enviado será adicionado ao cabeçalho da resposta a chave `X-Total-Count` com o valor `cont` que é contem o valor total de incidents.
+
+  - Com o método pronto só falta adicionalo em **`routes.js`** 
+  ```javascript
+  routes.get('/incidents', incidents_controller.index);
+  ```
+
+  2. As rotas que tem interações individuais é mais comum que id da entidade seja enviado na rota como **Route/Path Params**, agora que temos essa nova rota que lista os *incidents* tem um conflito de rotas pois já existia um método **GET** para a rota `/incidents`, então é hora de implementar essas alterações:
+
+  - Dentro de **`incidents_controller.js`**, será necessário alterar esses métodos:
+```javascript
+  async read(request, response) {
+
+    const {id} = request.params;
+  
+    const incident = await connection('incidents').where('id',id);
+  
+    return response.json(incident);
+  },
+
+  async update(request, response) {
+
+    const {id} = request.params;
+
+    const {title, description, value} = request.body;
+  
+    const incident = await connection('incidents')
+      .where('id',id).update({
+          title: title,
+          description: description,
+          value: value
+      });
+  
+    return response.json(incident);
+  },
+
+  async delete(request, response) {
+
+    const {id} = request.params;
+  
+    const incident = await connection('incidents')
+      .where('id',id).del();
+  
+    return response.json(incident);
+  }
+```
+
+  - Dentro de **`ongs_controller.js`**, será necessário alterar esses métodos:
+```javascript
+  async read(request, response) {
+
+    const {id} = request.params;
+
+    const ong = await connection('ongs').where('id',id);
+
+    return response.json(ong);
+  },
+
+  async update(request, response) {
+
+    const {id} = request.params;
+
+    const {name, email, whatsapp, city, uf} = request.body;
+
+    const ong = await connection('ongs')
+      .where('id',id).update({
+          name: name,
+          email: email,
+          whatsapp: whatsapp,
+          city: city,
+          uf: uf
+      });
+
+    return response.json(ong);
+  },
+
+  async delete(request, response) {
+
+    const {id} = request.params;
+
+    const ong = await connection('ongs')
+      .where('id',id).del();
+
+    return response.json(ong);
+  }
+```
 
 
 # **Front-End**
